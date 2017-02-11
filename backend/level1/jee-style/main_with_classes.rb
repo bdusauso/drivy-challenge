@@ -80,14 +80,48 @@ class RentalRepository
 
 end
 
-rental_repo = RentalRepository.new("data.json")
-car_repo = CarRepository.new("data.json")
+TotalPricePresenter = Struct.new(:rental_id, :total_price) do
 
-rentals = rental_repo.all.map do |rental|
-  car         = car_repo.find(rental.car_id)
-  total_price = rental.total_cost(car)
+  def as_json(opts = {})
+    {
+      id:          rental_id,
+      total_price: total_price
+    }
+  end
 
-  { id: rental.id, price: total_price }
 end
 
-puts rentals.inspect
+RentalsCollection = Struct.new(:rentals) do
+
+  def as_json(opts = {})
+    {
+      "rentals": rentals.map { |rental| rental.as_json }
+    }
+  end
+
+end
+
+class RentalService
+
+  def initialize(rental_repository, car_repository)
+    @rental_repo = rental_repository
+    @car_repo    = car_repository
+  end
+
+  def total_prices
+    @rental_repo.all.map do |rental|
+      car         = @car_repo.find(rental.car_id)
+      total_price = rental.total_cost(car)
+
+      TotalPricePresenter.new(rental.id, total_price)
+    end
+  end
+
+end
+
+datasource     = "data.json"
+rental_repo    = RentalRepository.new(datasource)
+car_repo       = CarRepository.new(datasource)
+rental_service = RentalService.new(rental_repo, car_repo)
+
+puts JSON.pretty_generate(RentalsCollection.new(rental_service.total_prices).as_json)
